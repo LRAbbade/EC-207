@@ -19,18 +19,35 @@
   - Deve-se ajustar a constante do valor do SMCLK para calculo do baudrate
   - Nao utiliza nenhuma modulacao para gerar o baudrate
   - Entrada = baudrate desejado em bps (9600, 38400, etc)
+  - Usa o conceito de interrupcao para recepcao de dados e o conceito de buffer circular
+   ou ring_buffer
 */
 #define SMCLK 1000000
+#define BUFFER_LEN 32   //tamanho do buffer de recepcao de dados
+//
+unsigned char buffer_rx[BUFFER_LEN];
+unsigned char buffer_in,buffer_out=0,buffer_count=0;
+
 
 void ConfigUART (unsigned int baudrate)    // Função que configura a UART com a taxa desejada
 {
-  P1SEL = BIT1 + BIT2 ;                     // P1.1 = RXD, P1.2=TXD
-  P1SEL2 = BIT1 + BIT2 ;                    // P1.1 = RXD, P1.2=TXD
+  P1SEL |= BIT1 + BIT2 ;                     // P1.1 = RXD, P1.2=TXD
+  P1SEL2 |= BIT1 + BIT2 ;                    // P1.1 = RXD, P1.2=TXD
   UCA0CTL1 |= UCSSEL_2;                     // SMCLK como clock (ajustar definicao)
+
   UCA0BR0 = (SMCLK/baudrate)%256;           //taxa de comunicacao
   UCA0BR1 = (SMCLK/baudrate)/256;           //taxa de comunicacao
   UCA0MCTL = UCBRS0;                        // Sem modulação para gerar a taxa
   UCA0CTL1 &= ~UCSWRST;                     // Inicia o canal serial
+  for(buffer_count=0;buffer_count<sizeof(buffer_rx);buffer_count++)
+  {
+    buffer_rx[buffer_in]=0;
+  }
+  buffer_in=0;                            //Limpa variavel de entrada
+  buffer_out=0;                           //Limpa variavel de saida de dados
+  buffer_count=0;
+    IE2|=UCA0RXIE;
+  _BIS_SR(GIE);
 }
 /******************************************************************************/
 
@@ -59,25 +76,60 @@ void UARTSend (char tx[])
 void UARTReceive(char *rx,unsigned int tam)
 {
   int i=0;
+  unsigned char in,out;
+  in=buffer_in;
+  out=buffer_out;
   if(tam==0)            //se nao aguarda receber, realiza a leitura
   {
-    if((IFG2&UCA0RXIFG)!=0)
+    if(out!=in)   //tem dado?
     {
-      IFG2=IFG2&(~UCA0RXIFG);              //Desliga flag indicador de recepcao
-      *rx=UCA0RXBUF;                       //salva o dado disponivel
+      *rx=buffer_rx[buffer_out];
+      buffer_out++;
+      buffer_count--;
+      if(buffer_out==BUFFER_LEN) buffer_out=0;
       rx++;
     }
+    else 
+      return;
   }
   else
   {
     while(i<tam)
     {
-        while ((IFG2&UCA0RXIFG)==0);            //Aguarda receber o dado
-        IFG2=IFG2&(~UCA0RXIFG);                 //Desliga flag indicador de recepcao
-        *rx=UCA0RXBUF;                          //salva o dado
+      if(out!=in)
+      {
+        *rx=buffer_rx[buffer_out];
+        buffer_out++;
+        buffer_count--;
+        if(buffer_out==BUFFER_LEN) buffer_out=0;
         rx++;
-        i++;  
+        i++; 
+      } 
     }
   }  
   *rx=0;                                        //finaliza o dado recebido
+}
+
+/******************************************************************************/
+/* Interrupcao de recepcao da serial
+   - Recebe um byte e salva no buffer
+   - Usa conceito de buffer circular
+   - Tamanho do buffe deve ser definido
+*/
+#pragma vector=USCIAB0RX_VECTOR
+__interrupt void uart_rx (void)
+{
+  buffer_rx[buffer_in]=UCA0RXBUF;
+  buffer_in++;
+  if(buffer_in==BUFFER_LEN) buffer_in=0;
+  buffer_count++;
+  IFG2=IFG2&UCA0RXIFG;          //desliga flag
+}
+
+/******************************************************************************/
+/* Retorna o numero de bytes existentes no buffer
+*/
+unsigned int UARTReceiveCount (void)
+{
+  return buffer_count;
 }

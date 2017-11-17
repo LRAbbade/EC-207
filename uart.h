@@ -5,3 +5,4 @@
 void ConfigUART (unsigned int baudrate);
 void UARTReceive(char *rx,unsigned int tam);
 void UARTSend (char tx[]) ;
+unsigned int UARTReceiveCount (void);
