@@ -23,13 +23,15 @@ char mensagem_tx[5];                   //armazena mensagem de texto para tx
 
 void main(void)
 { 
+  WDTCTL = WDTPW + WDTHOLD;           // Stop watchdog timer
+  
   Start();
 
     for (;;)
     {
         atualizarDisplay();
       
-        if (!(P1IN & BIT3))
+        if (!(P1IN & BIT3))             // se apertar o botao, arruma a intensidade
         {
             setIntensidade();
             __delay_cycles(281300);
@@ -39,8 +41,6 @@ void main(void)
 
 void Start(void)
 {
-    WDTCTL = WDTPW + WDTHOLD;           // Stop watchdog timer
-    
     DCOCTL=CALDCO_1MHZ;                       //Calibra para 1MHz
     BCSCTL1=CALBC1_1MHZ;
     
@@ -68,8 +68,8 @@ void receberInfo(void)
     // pega o que tiver no UART e salva em leds e luminosidade
    UARTReceive(&rx[0],0);     //Salva em rx dado recebido. Se nao recebeu, rx=0
    
-   leds = rx[0] - '0';
-   luminosidade = (rx[1] - '0') * 20;
+   if (rx[0] >= '0' && rx[0] <= '1') leds = rx[0] - '0';
+   if (rx[1] >= '0' && rx[1] <= '5') luminosidade = (rx[1] - '0') * 20;
 }
 
 void enviarValorPelaUART(void)
