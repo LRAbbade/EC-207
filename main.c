@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "msp430g2553.h"
 #include "lcd.h"
 #include "uart.h"
@@ -10,13 +11,15 @@ void zerarTimer(void);
 void ligarBacklight(void);
 void desligarBacklight(void);
 void atualizarDisplay(void);
+void setIntensidade(void);
+void displayClear(void);
 
 char intensidade = 0;
 char luminosidade = 0;
 char leds = 0;
 unsigned int tempo_limite = 50;
 char rx[10];                            //armazena recepcao do pc (máximo 10chars)
-char mensagem_tx[20];                   //armazena mensagem de texto para tx
+char mensagem_tx[5];                   //armazena mensagem de texto para tx
 
 void main(void)
 { 
@@ -28,13 +31,8 @@ void main(void)
       
         if (!(P1IN & BIT3))
         {
-            ligarBacklight();
-
-            intensidade += 20;
-            if (intensidade > 100) intensidade = 0;
-
-            enviarValorPelaUART();
-            zerarTimer();
+            setIntensidade();
+            __delay_cycles(281300);
         }
     }
 }
@@ -67,19 +65,22 @@ void Start(void)
 
 void receberInfo(void)
 {
-    // pega o que tiver no UART e devolve em node
+    // pega o que tiver no UART e salva em leds e luminosidade
    UARTReceive(&rx[0],0);     //Salva em rx dado recebido. Se nao recebeu, rx=0
-
-   leds = rx[0];
-   luminosidade = rx[1];
+   
+   leds = rx[0] - '0';
+   luminosidade = (rx[1] - '0') * 20;
 }
 
 void enviarValorPelaUART(void)
 {
     // enviar a intensidade pelo UART
+
+    char toSend = intensidade / 20;
+    toSend += '0';
   
-  sprintf(mensagem_tx,"%c\n\r",intensidade);
-  UARTSend(mensagem_tx);
+    sprintf(mensagem_tx,"%c\n\r", toSend);
+    UARTSend(mensagem_tx);
 }
 
 void zerarTimer(void)
@@ -110,11 +111,35 @@ void atualizarDisplay(void)
   
     if (luminosidade == lastLuminosidade && leds == lastLeds) return;     // nao houve mudancas
 
-    LCDPrintXYVal(1,1,luminosidade);
-    LCDPrintXYVal(1,2,leds);
-    
+    displayClear();
     ligarBacklight();
+    
+    LCDPrintXYStr(1, 1, "Luminosidade:");
+    LCDPrintXYVal(14, 1, luminosidade);
+    LCDPrintXYStr(1, 2, (leds ? (unsigned char*)"Leds ON" : (unsigned char*)"Leds OFF"));
+    
     zerarTimer();
+}
+
+void setIntensidade(void)
+{
+  displayClear();
+  ligarBacklight();
+  
+  intensidade += 20;
+  if (intensidade > 100) intensidade = 0;
+  
+  LCDPrintXYStr(1, 1, "Intensidade:");
+  LCDPrintXYVal(1, 2, (int)intensidade);
+  
+  enviarValorPelaUART();
+  zerarTimer();
+}
+
+void displayClear(void)
+{
+  LCDCmd(0x01);
+  __delay_cycles(52500);
 }
 
 #pragma vector=TIMER0_A0_VECTOR
