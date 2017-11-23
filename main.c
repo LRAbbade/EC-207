@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include "msp430g2553.h"
 #include "lcd.h"
 #include "uart.h"
@@ -18,7 +17,7 @@ char intensidade = 0;
 char luminosidade = 0;
 char leds = 0;
 unsigned int tempo_limite = 50;
-char rx[10];                            //armazena recepcao do pc (m·ximo 10chars)
+char rx[10];                            //armazena recepcao do pc (m√°ximo 10chars)
 char mensagem_tx[5];                   //armazena mensagem de texto para tx
 
 void main(void)
